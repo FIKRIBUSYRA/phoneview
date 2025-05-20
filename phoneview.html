@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RFID Admin Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 15px;
+      margin: 0;
+      background-color: #f9f9f9;
+    }
+
+    h1, h2 {
+      margin-top: 20px;
+    }
+
+    input, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 8px;
+      box-sizing: border-box;
+      font-size: 16px;
+    }
+
+    button {
+      background-color: #1976d2;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #125aa2;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+      font-size: 14px;
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: left;
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+    }
+
+    @media (max-width: 600px) {
+      th, td {
+        white-space: nowrap;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- 🔐 Login Form -->
+<div id="loginForm">
+  <h2>Admin Login</h2>
+  <input type="password" id="adminPass" placeholder="Enter password">
+  <button onclick="checkLogin()">Login</button>
+</div>
+
+<!-- 🔧 Admin Dashboard (hidden until login) -->
+<div id="dashboard" style="display:none">
+  <h1>RFID Admin Dashboard</h1>
+
+  <!-- Pending UIDs -->
+  <h2>Pending Registrations</h2>
+  <div id="pending"></div>
+
+  <!-- User List -->
+  <h2>Registered Users</h2>
+  <div class="table-wrapper">
+    <table id="usersTable">
+      <thead>
+        <tr>
+          <th>UID</th>
+          <th>Name</th>
+          <th>Points</th>
+          <th>Save</th>
+        </tr>
+      </thead>
+      <tbody id="usersBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const password = "skmorek";
+
+  function checkLogin() {
+    const userPassword = document.getElementById("adminPass").value;
+    if (userPassword === password) {
+      document.getElementById("loginForm").style.display = "none";
+      document.getElementById("dashboard").style.display = "block";
+      loadPending();
+      loadUsers();
+    } else {
+      alert("Incorrect password.");
+    }
+  }
+
+  const DB_URL = 'https://points-81a57-default-rtdb.asia-southeast1.firebasedatabase.app/';
+  const AUTH = '?auth=NAZwXIIgaG3H8AfZHOAIDrmS2o7IyjBqaLykngCa';
+
+  function loadPending() {
+    fetch(DB_URL + 'pending_registration.json' + AUTH)
+      .then(res => res.json())
+      .then(data => {
+        const div = document.getElementById('pending');
+        div.innerHTML = '';
+        if (data) {
+          Object.keys(data).forEach(uid => {
+            const form = document.createElement('div');
+            form.innerHTML = `
+              <strong>${uid}</strong><br>
+              <input type="text" id="pending-name-${uid}" placeholder="Name" required>
+              <input type="number" id="pending-points-${uid}" placeholder="Points" value="0">
+              <button type="button" onclick="registerUser(event, '${uid}')">Register</button>
+              <hr>
+            `;
+            div.appendChild(form);
+          });
+        } else {
+          div.innerHTML = "No pending UIDs.";
+        }
+      });
+  }
+
+  function registerUser(event, uid) {
+    event.preventDefault();
+    const name = document.getElementById(`pending-name-${uid}`).value.trim();
+    const points = parseInt(document.getElementById(`pending-points-${uid}`).value);
+
+    if (!name) {
+      alert("Name cannot be empty!");
+      return;
+    }
+
+    const data = { name, points };
+
+    fetch(DB_URL + 'users/' + uid + '.json' + AUTH, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    })
+    .then(() => {
+      return fetch(DB_URL + 'pending_registration/' + uid + '.json' + AUTH, {
+        method: 'DELETE'
+      });
+    })
+    .then(() => {
+      alert("User registered!");
+      loadPending();
+      loadUsers();
+    });
+  }
+
+  function loadUsers() {
+    fetch(DB_URL + 'users.json' + AUTH)
+      .then(res => res.json())
+      .then(data => {
+        const tbody = document.getElementById('usersBody');
+        tbody.innerHTML = '';
+        if (data) {
+          Object.keys(data).forEach(uid => {
+            const user = data[uid];
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${uid}</td>
+              <td><input type="text" id="user-name-${uid}" value="${user.name}"></td>
+              <td><input type="number" id="user-points-${uid}" value="${user.points}"></td>
+              <td><button type="button" onclick="updateUser('${uid}')">Save</button></td>
+            `;
+            tbody.appendChild(row);
+          });
+        }
+      });
+  }
+
+  function updateUser(uid) {
+    const name = document.getElementById(`user-name-${uid}`).value.trim();
+    const points = parseInt(document.getElementById(`user-points-${uid}`).value);
+
+    if (!name) {
+      alert("Name cannot be empty!");
+      return;
+    }
+
+    const data = { name, points };
+
+    fetch(DB_URL + 'users/' + uid + '.json' + AUTH, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    }).then(() => {
+      alert("User updated!");
+      loadUsers();
+    });
+  }
+</script>
+
+</body>
+</html>
